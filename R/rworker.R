@@ -112,8 +112,8 @@ Rworker <- R6::R6Class(
         },
 
         # Create and register new task 
-        task = function(FUN, name, ...) {
-            private$tasklist[[name]] = FUN
+        task = function(FUN, name, task_structure = NULL, ...) {
+            private$tasklist[[name]] = list('FUN' = FUN, 'task_structure' = task_structure)
         },
 
         # Listen for new messages from message queue
@@ -132,7 +132,7 @@ Rworker <- R6::R6Class(
                     # send job to worker
                     if (!is.null(msg)){
                         tereq = ter(msg)
-                        tereq$task = self$tasks[[tereq$taskname]]
+                        tereq$task = self$tasks[[tereq$taskname]][['FUN']]
                         log_it(glue::glue("Received task {tereq$task_id}: {tereq$taskname}"), 'info')
                         self$execute(tereq)
                     }
