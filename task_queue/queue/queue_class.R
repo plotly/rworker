@@ -11,7 +11,6 @@
 library(R6)
 library(rworker)
 library(redux)
-library(callr)
 library(tidyr)
 library(jsonlite)
 
@@ -20,12 +19,9 @@ library(dash)
 library(dashCoreComponents)
 library(dashHtmlComponents)
 
-# test_task <- (function(){1+1})
-
-
 ###################################################################################
 
-R6_Task_QueueR <- R6Class('TaskQueueR', 
+R6_Task_QueueR <- R6Class('tq_client', 
                           public = list(
                             con = redux::hiredis(),
                             worker_list = list(),
@@ -84,7 +80,6 @@ R6_Task_QueueR <- R6Class('TaskQueueR',
                                 self$rwork$task(FUN = task, name = task_name, task_structure = task_JSON)
                               }
                               
-                              self$con$SET('update', 'TRUE')
                               invisible(self)
                             },
                             
@@ -116,6 +111,7 @@ R6_Task_QueueR <- R6Class('TaskQueueR',
                             send_tasks = function() {
                               rwork_object <- serialize(self$rwork, connection = NULL)
                               self$con$SET('rwork', rwork_object)
+                              self$con$SET('update', 'TRUE')
                             }
                           ),
                           private = list(
@@ -132,7 +128,7 @@ R6_Task_QueueR <- R6Class('TaskQueueR',
 )
 
 
-TaskQueueR <- function(){
+tq_client <- function(){
   R6_Task_QueueR$new()
 }
 
@@ -140,12 +136,20 @@ TaskQueueR <- function(){
 # Working example
 
 # Define the class
-tq <- TaskQueueR()
+tq <- tq_client()
 
 
 # Create and queue tests
 tq$queue_task(task = function(){1+1}, task_name = 'my-task')
-tq$queue_task(task = function(){2+1}, task_name = 'my-task-2')
+tq$queue_task(task = function(){6+1}, task_name = 'my-task-4')
+
+tq$queue_task(task=function(){
+  library(rworker)
+  Sys.sleep(5)
+  task_progress(50) # 50% progress
+  Sys.sleep(5)
+  task_progress(100) # 100% progress
+}, task_name='sleep-task')
 
 # View currently queued tasks
 tq$tasks_list
@@ -160,7 +164,7 @@ tq$task_result('my-task-2')
 
 
 ###################################################################################
-# Dash App WIP example/test
+# Dash App WIP example/test - NOT WORKING AT THE MOMENT, BEING REWORKED
 
 app <- Dash$new()
 
@@ -246,7 +250,7 @@ app$callback(
 
 
 
-app$run_server(showcase = TRUE, debug = FALSE)
+# app$run_server(showcase = TRUE, debug = FALSE)
 
 
 

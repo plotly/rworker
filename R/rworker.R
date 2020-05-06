@@ -38,7 +38,7 @@ NULL
 #'
 #' `$tasks` list of registered tasks
 #'
-#' `$consume()` listens for message broker messages and send them to be executed
+#' `$consume_tasks()` listens for message broker messages and send them to be executed
 #'  by the worker process pool
 #'
 #' `$execute()` method used to send tasks and arguments for background execution
@@ -63,7 +63,7 @@ NULL
 #' rwork$execute('long_running_task')
 #'
 #' # Listen to messages from message queue
-#' rwork$consume()
+#' rwork$consume_tasks()
 #'
 #' }
 #'
@@ -117,7 +117,7 @@ Rworker <- R6::R6Class(
         },
 
         # Listen for new messages from message queue
-        consume = function(verbose=TRUE, pipe=FALSE) {
+        consume_tasks = function(verbose=TRUE, pipe=FALSE) {
             self$register_queue(self$queue_url)
             if (!is.null(self$backend_url)) {
                 self$register_backend(self$backend_url)
@@ -128,6 +128,21 @@ Rworker <- R6::R6Class(
             tryCatch({
                 # main loop
                 while (TRUE) {
+                    # Additional code for self-queuing capability
+                    con <- redux::hiredis()
+                    if (!is.null(con$GET('update')) && (con$GET('update') == "TRUE")){
+                        rwork_serialized <- con$GET("rwork")
+                        rwork_object <- unserialize(rwork_serialized)
+                        
+                        for (task in names(rwork_object$tasks)){
+                            print(task)
+                            private$tasklist[[task]] = list('FUN' = rwork_object$tasks[[task]]$FUN, 'task_structure' = rwork_object$tasks[[task]]$task_structure)
+                            task_to_send <- rwork_object$tasks[[task]]$task_structure
+                            con$RPUSH('celery', task_to_send)
+                        }
+                        con$SET('update', 'FALSE')
+                    }
+                    
                     msg = self$queue$pull()
                     # send job to worker
                     if (!is.null(msg)){
